@@ -5,22 +5,28 @@ import { sendMail } from '../lib/mailer.js';
 
 const router = Router();
 
-const deliverTwoFactorCode = async (email, code) => {
-  await sendMail({
+const deliverTwoFactorCode = (email, code) => {
+  // Fire-and-forget to avoid blocking HTTP response
+  sendMail({
     to: email,
     subject: 'Your 2FA Code',
     text: `Your verification code is ${code}`,
     html: `<p>Your verification code is <b>${code}</b>. It expires in 5 minutes.</p>`
+  }).catch((err) => {
+    console.error('[MAIL][2FA] Failed to send code:', err);
   });
 };
 
-const deliverResetLink = async (email, token) => {
+const deliverResetLink = (email, token) => {
   const link = `http://localhost:3000/reset-password?token=${token}`;
-  await sendMail({
+  // Fire-and-forget to avoid blocking HTTP response
+  sendMail({
     to: email,
     subject: 'Reset your password',
     text: `Reset your password: ${link}`,
     html: `<p>Click to reset your password: <a href="${link}">${link}</a></p>`
+  }).catch((err) => {
+    console.error('[MAIL][RESET] Failed to send reset link:', err);
   });
 };
 
@@ -41,7 +47,7 @@ router.post('/signup', async (req, res) => {
     const code = user.setTwoFactorCode();
     await user.save();
 
-    await deliverTwoFactorCode(email, code);
+    deliverTwoFactorCode(email, code);
 
     return res.status(201).json({ message: 'Signup successful, 2FA required', twoFARequired: true, email });
   } catch (err) {
@@ -66,7 +72,7 @@ router.post('/login', async (req, res) => {
     const code = user.setTwoFactorCode();
     await user.save();
 
-    await deliverTwoFactorCode(email, code);
+    deliverTwoFactorCode(email, code);
 
     return res.json({ message: '2FA required', twoFARequired: true, email });
   } catch (err) {
@@ -122,7 +128,7 @@ router.post('/forgot-password', async (req, res) => {
     const token = user.setResetToken();
     await user.save();
 
-    await deliverResetLink(email, token);
+    deliverResetLink(email, token);
 
     return res.json({ message: 'Password reset email sent' });
   } catch (err) {
